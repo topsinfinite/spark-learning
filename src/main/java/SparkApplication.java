@@ -1,5 +1,4 @@
-
-
+import java.io.File;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +15,7 @@ import org.joda.time.Period;
 
 public class SparkApplication {
 
-  public static class Record implements Serializable{
+  public static class Record implements Serializable {
     private int key;
     private String value;
 
@@ -37,18 +36,27 @@ public class SparkApplication {
     }
   }
 
-  public static void main(String[] args){
-    SparkSession spark= SparkSession.builder().appName("Simple App with Hive").getOrCreate();
+  public static void main(String[] args) {
+    String warehouseLocation=new File("spark-warehouse").getAbsolutePath();
+    SparkSession spark = SparkSession.builder()
+        .appName("Simple App with Hive")
+        .config("spark.sql.warehouse.dir", warehouseLocation)
+        .enableHiveSupport()
+        .getOrCreate();
 
-    JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
+    System.out.println("File Location"+ warehouseLocation);
+
+    spark.sql("CREATE TABLE IF NOT EXISTS src (key INT, value STRING) USING hive OPTIONS(fileFormat 'textfile')");
+    spark.sql("LOAD DATA LOCAL INPATH '/usr/local/Cellar/apache-spark/2.4.3/kv1' INTO TABLE src");
+    //spark.sql("LOAD DATA LOCAL INPATH '/spark-learning/src/main/resources/kv1' INTO TABLE src");
+    spark.sql("SELECT * FROM src").show();
     spark.stop();
-
   }
 
-  public  void processPI(String[] args){
-    String logFile="/usr/local/Cellar/apache-spark/2.4.3/README.md";
-    SparkSession spark= SparkSession.builder().appName("Simple App").getOrCreate();
-    Dataset<String> logData=spark.read().textFile(logFile).cache();
+  public void processPI(String[] args) {
+    String logFile = "/usr/local/Cellar/apache-spark/2.4.3/README.md";
+    SparkSession spark = SparkSession.builder().appName("Simple App").getOrCreate();
+    Dataset<String> logData = spark.read().textFile(logFile).cache();
 
     JavaSparkContext jsc = new JavaSparkContext(spark.sparkContext());
 
@@ -59,38 +67,45 @@ public class SparkApplication {
       l.add(i);
     }
 
-    JavaRDD<Integer> dataSet=jsc.parallelize(l,slices);
-    LocalDateTime startTime=LocalDateTime.now();
-    int count = dataSet.map(new Function<Integer, Integer>() {
-      @Override
-      public Integer call(Integer integer) {
-        double x = Math.random() * 2 - 1;
-        double y = Math.random() * 2 - 1;
-        return (x * x + y * y < 1) ? 1 : 0;
-      }
-    }).reduce(new Function2<Integer, Integer, Integer>() {
-      @Override
-      public Integer call(Integer integer, Integer integer2) {
-        return integer + integer2;
-      }
-    });
+    JavaRDD<Integer> dataSet = jsc.parallelize(l, slices);
+    LocalDateTime startTime = LocalDateTime.now();
+    int count =
+        dataSet
+            .map(
+                new Function<Integer, Integer>() {
+                  @Override
+                  public Integer call(Integer integer) {
+                    double x = Math.random() * 2 - 1;
+                    double y = Math.random() * 2 - 1;
+                    return (x * x + y * y < 1) ? 1 : 0;
+                  }
+                })
+            .reduce(
+                new Function2<Integer, Integer, Integer>() {
+                  @Override
+                  public Integer call(Integer integer, Integer integer2) {
+                    return integer + integer2;
+                  }
+                });
 
-    LocalDateTime endTime= LocalDateTime.now();
-    Period period=new Period(startTime,endTime);
-    System.out.println("Pi is roughly " + 4.0 * count / n +" Time taken: "+ period.getMillis()+ " Slice no: "+ slices);
-
+    LocalDateTime endTime = LocalDateTime.now();
+    Period period = new Period(startTime, endTime);
+    System.out.println(
+        "Pi is roughly "
+            + 4.0 * count / n
+            + " Time taken: "
+            + period.getMillis()
+            + " Slice no: "
+            + slices);
 
     jsc.stop();
 
-
-    //long numAs= logData.filter(s->s.contains("a")).count();
+    // long numAs= logData.filter(s->s.contains("a")).count();
     // long numBs= logData.filter(s->s.contains("b")).count();
 
-    //System.out.println("Lines with a: "+numAs+ ", lines with b: "+ numBs );
-    //long numAs= logData.count();
-    //System.out.println(("Lines count: "+ numAs));
+    // System.out.println("Lines with a: "+numAs+ ", lines with b: "+ numBs );
+    // long numAs= logData.count();
+    // System.out.println(("Lines count: "+ numAs));
     spark.stop();
   }
 }
-
-
