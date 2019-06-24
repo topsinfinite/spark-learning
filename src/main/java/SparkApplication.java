@@ -33,15 +33,30 @@ public class SparkApplication {
             .enableHiveSupport()
             .getOrCreate();
 
-      Dataset<Row> hvSql = spark.sql("SELECT CustomerId, DateOfBirth, datediff(current_date(),DateOfBirth)/365 Age FROM HiveCustomerTbl WHERE CustomerId>90");
-      hvSql.show();
+    Dataset<Row> hvSql =
+        spark.sql(
+            "SELECT CustomerId, PartyId, DateOfBirth, FLOOR(datediff(current_date(),DateOfBirth)/365) Age FROM HiveCustomerTbl WHERE CustomerId>90");
+    hvSql.show();
 
-      //spark.sql("SELECT current_date()").show();
+    hvSql.write().mode("overwrite").json("target/json");
 
+    hvSql.write().partitionBy("PartyId").mode("overwrite").saveAsTable("HiveCustomerAgeTbl");
 
+    hvSql
+        .write()
+        .format("csv")
+        .mode("overwrite")
+        .option("header", "true")
+        .save("/users/tfatayo/cdp-workspace/customerage.csv");
 
-      spark.stop();
+    hvSql
+        .write()
+        .format("csv")
+        .mode("overwrite")
+        .option("header", "true")
+        .save("s3a://my-emr-bucket1/my-hive-query-results/customerage.csv");
 
+    spark.stop();
   }
 
   private static StructType buildSchema() {
@@ -57,7 +72,7 @@ public class SparkApplication {
     return (schema);
   }
 
-  public void loadCsvAndSaveToHive(SparkSession spark,String filePath ){
+  public void loadCsvAndSaveToHive(SparkSession spark, String filePath) {
     try {
       Dataset<Row> custDFCsv =
           spark
