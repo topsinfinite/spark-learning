@@ -29,10 +29,34 @@ public class SparkApplication {
     SparkSession spark =
         SparkSession.builder()
             .appName("Simple App with Hive")
-            .config("spark.sql.warehouse.dir", warehouseLocation)
-            .enableHiveSupport()
+           // .config("spark.sql.warehouse.dir", warehouseLocation)
+            //.enableHiveSupport()
             .getOrCreate();
 
+
+
+     //loadCsvAndSaveToHive(spark,filePath);
+
+     //computeAndSaveToDifferentLocations(spark,sc);
+
+
+    spark.stop();
+  }
+
+  private static StructType buildSchema() {
+    StructType schema =
+        new StructType(
+            new StructField[] {
+              DataTypes.createStructField("CustomerId", DataTypes.IntegerType, true),
+              DataTypes.createStructField("PartyId", DataTypes.IntegerType, false),
+              DataTypes.createStructField("DateOfBirth", DataTypes.DateType, false),
+              DataTypes.createStructField("FullName", DataTypes.StringType, false)
+            });
+
+    return (schema);
+  }
+
+  public static void computeAndSaveToDifferentLocations(SparkSession spark, JavaSparkContext sc){
     Dataset<Row> hvSql =
         spark.sql(
             "SELECT CustomerId, PartyId, DateOfBirth, FLOOR(datediff(current_date(),DateOfBirth)/365) Age FROM HiveCustomerTbl WHERE CustomerId>90");
@@ -55,24 +79,9 @@ public class SparkApplication {
         .mode("overwrite")
         .option("header", "true")
         .save("s3a://my-emr-bucket1/my-hive-query-results/customerage.csv");
-
-    spark.stop();
   }
 
-  private static StructType buildSchema() {
-    StructType schema =
-        new StructType(
-            new StructField[] {
-              DataTypes.createStructField("CustomerId", DataTypes.IntegerType, true),
-              DataTypes.createStructField("PartyId", DataTypes.IntegerType, false),
-              DataTypes.createStructField("DateOfBirth", DataTypes.DateType, false),
-              DataTypes.createStructField("FullName", DataTypes.StringType, false)
-            });
-
-    return (schema);
-  }
-
-  public void loadCsvAndSaveToHive(SparkSession spark, String filePath) {
+  public static void loadCsvAndSaveToHive(SparkSession spark, String filePath) {
     try {
       Dataset<Row> custDFCsv =
           spark
@@ -85,9 +94,13 @@ public class SparkApplication {
               // .option("inferSchema", "true")
               .csv(filePath + "custDoB.csv");
 
-      custDFCsv.select(col("CustomerId"), col("DateOfBirth")).show();
+      custDFCsv.show();
+
       custDFCsv.printSchema();
 
+      custDFCsv.select(col("CustomerId"), col("DateOfBirth")).show();
+      custDFCsv.createOrReplaceTempView("custData");
+      spark.sql("SELECT CustomerId, DateOfBirth FROM custData").show();
       custDFCsv.write().partitionBy("PartyId").mode("overwrite").saveAsTable("HiveCustomerTbl");
 
       Dataset<Row> hvSql = spark.sql("SELECT * FROM HiveCustomerTbl WHERE CustomerId>5");
