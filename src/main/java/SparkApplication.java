@@ -24,21 +24,32 @@ import org.joda.time.Period;
 public class SparkApplication {
 
   public static void main(String[] args) {
-    String warehouseLocation = new File("spark-warehouse").getAbsolutePath();
-    String filePath = "/Users/tfatayo/cdp-workspace/spark-input-files/";
+    // String warehouseLocation = new File("spark-warehouse").getAbsolutePath();
+    // String filePath = "/Users/tfatayo/cdp-workspace/spark-input-files/";
     SparkSession spark =
         SparkSession.builder()
             .appName("Simple App with Hive")
-           // .config("spark.sql.warehouse.dir", warehouseLocation)
-            //.enableHiveSupport()
+            // .config("spark.sql.warehouse.dir", warehouseLocation)
+            .enableHiveSupport()
             .getOrCreate();
 
+    Dataset<Row> hvSql =
+        spark.sql(
+            "SELECT firstname, familyname, birthdate, FLOOR(datediff(current_date(),birthdate)/365) Age from schema_2390435.consumers_0000000001");
 
+    hvSql
+        .write()
+        .format("parquet")
+        .mode("overwrite")
+        .option("header", "true")
+        .save(args[0] + "/customerage");
 
-     //loadCsvAndSaveToHive(spark,filePath);
-
-     //computeAndSaveToDifferentLocations(spark,sc);
-
+    hvSql
+        .write()
+        .format("csv")
+        .mode("overwrite")
+        .option("header", "true")
+        .save(args[0] + "/customerage.csv");
 
     spark.stop();
   }
@@ -56,7 +67,7 @@ public class SparkApplication {
     return (schema);
   }
 
-  public static void computeAndSaveToDifferentLocations(SparkSession spark, JavaSparkContext sc){
+  public static void computeAndSaveToDifferentLocations(SparkSession spark, JavaSparkContext sc) {
     Dataset<Row> hvSql =
         spark.sql(
             "SELECT CustomerId, PartyId, DateOfBirth, FLOOR(datediff(current_date(),DateOfBirth)/365) Age FROM HiveCustomerTbl WHERE CustomerId>90");
